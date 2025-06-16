@@ -1,4 +1,5 @@
 from flask import Flask
+from flask import request
 from random import choice
 
 app = Flask(__name__)
@@ -41,9 +42,15 @@ quotes = [
    },
 ]
 
-@app.route("/quotes")
-def quotes_():
-   return quotes
+# @app.route("/quotes")
+# def quotes_():
+#    return quotes
+
+@app.route("/quotes", methods=['POST'])
+def create_quote():
+   data = request.json
+   print("data = ", data)
+   return {}, 201
 
 @app.route("/quotes/<int:id>")
 def get_quote(id):
@@ -54,7 +61,7 @@ def get_quote(id):
 
 @app.route("/quotes/count")
 def count_():
-   return str(len(quotes[1]))
+   return str(len(quotes))
 
 @app.route("/quotes/random")
 def round_():
