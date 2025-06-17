@@ -1,23 +1,8 @@
-from flask import Flask
-from flask import request
+from flask import Flask, request, jsonify
 from random import choice
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
-
-@app.route("/")
-def hello_world():
-   return "Hello, World!"
-
-about_me = {
-   "name": "Вадим",
-   "surname": "Шиховцов",
-   "email": "vshihovcov@specialist.ru"
-}
-
-@app.route("/about")
-def about():
-   return about_me
 
 quotes = [
    {
@@ -42,30 +27,61 @@ quotes = [
    },
 ]
 
-# @app.route("/quotes")
-# def quotes_():
-#    return quotes
+@app.route("/")
+def hello_world():
+   return "Hello, World!"
+
+about_me = {
+   "name": "Александр",
+   "surname": "Морозов",
+   "email": "am@mail.ru"
+}
+
+@app.route("/about")
+def about():
+   return about_me
+
+@app.route("/quotes")
+def quotes_():
+   return quotes
 
 @app.route("/quotes", methods=['POST'])
 def create_quote():
-   data = request.json
-   print("data = ", data)
-   return {}, 201
+    data = request.json
+    print("data =", data )
+    return data, 201
+
+@app.route("/quotes", methods=['PUT'])
+def edit_quote():
+    new_data = request.json
+    last_quote = quotes[-1]
+    new_id = last_quote["id"] + 1
+    new_data["id"] = new_id
+    quotes.append(new_data)
+    return new_data, 201
+
+@app.route("/quotes/<int:id>", methods=['DELETE'])
+def delete(id):
+    for i in quotes:
+        if i["id"] == id:
+            quotes.remove(i)
+            return f"Quote with id {id} is deleted.", 200
+    return {"error": f"Quote with id={id} not found"}, 404
 
 @app.route("/quotes/<int:id>")
 def get_quote(id):
-    # if quotes.get("id", id) != None:
-    return quotes[id]
-    # else:
-    #     return f"Quote with id={id} not found", 404   
+    for i in quotes:
+        if i["id"] == id:
+            return i, 200
+    return f"Quote with id={id} not found", 404
 
 @app.route("/quotes/count")
 def count_():
-   return str(len(quotes))
+   return jsonify(str(len(quotes)))
 
 @app.route("/quotes/random")
 def round_():
-   return choice(quotes)
+   return jsonify(choice(quotes))
 
 if __name__ == "__main__":
    app.run(debug=True)
