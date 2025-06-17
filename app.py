@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from random import choice
+import sqlite3
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
@@ -45,9 +46,26 @@ about_me = {
 def about():
    return about_me
 
+# @app.route("/quotes")
+# def quotes_():
+#    return quotes
+
 @app.route("/quotes")
 def quotes_():
-   return quotes
+    connection = sqlite3.connect("store.db")
+    # Создаем cursor, он позволяет делать SQL-запросы
+    cursor = connection.cursor()
+    select_quotes = "SELECT * from quotes"
+    cursor.execute(select_quotes)
+    # Извлекаем результаты запроса
+    quotes = cursor.fetchall()
+    # Закрыть курсор:
+    cursor.close()
+    # Закрыть соединение:
+    connection.close()
+#    print(f"{quotes=}")
+    return quotes
+
 
 @app.route("/quotes/filter")
 def quotes_filt():
