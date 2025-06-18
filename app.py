@@ -8,6 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, func, insert, update
 from sqlalchemy.exc import InvalidRequestError
 from flask_migrate import Migrate
+from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey
 
 
 class Base(DeclarativeBase):
@@ -28,19 +30,43 @@ db = SQLAlchemy(model_class=Base)
 db.init_app(app)
 migrate = Migrate(app, db)
 
+class AuthorModel(db.Model):
+    __tablename__ = 'authors'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[int] = mapped_column(String(32), index= True, unique=True)
+    quotes: Mapped[list['QuoteModel']] = relationship( back_populates='author', lazy='dynamic')
+    def __init__(self, id, name):
+        self.id = id,
+        self.name = name
+
+    def to_dict(self):
+        return{"id": self.id, "name": self.name}    
+
 class QuoteModel(db.Model):
     __tablename__ = 'quotes'
     id: Mapped[int] = mapped_column(primary_key=True)
-    author: Mapped[str] = mapped_column(String(32))
+    author_id: Mapped[str] = mapped_column(ForeignKey('authors.id'))
+    author: Mapped['AuthorModel'] = relationship(back_populates='quotes')
     text: Mapped[str] = mapped_column(String(255))
-    rating: Mapped[int]
-    def __init__(self, author, text, rating):
-        self.author = author
+    # rating: Mapped[int]
+    def __init__(self, author, text):
+        # self.author = author
         self.text = text
-        self.rating = rating
+        # self.rating = rating
+
+# class QuoteModel(db.Model):
+#     __tablename__ = 'quotes'
+#     id: Mapped[int] = mapped_column(primary_key=True)
+#     author: Mapped[str] = mapped_column(String(32))
+#     text: Mapped[str] = mapped_column(String(255))
+#     rating: Mapped[int]
+#     def __init__(self, author, text, rating):
+#         self.author = author
+#         self.text = text
+#         self.rating = rating
 
     def to_dict(self):
-        return{"id": self.id, "author": self.author, "text": self.text, "rating": self.rating}
+        return{"id": self.id, "text": self.text}
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -117,17 +143,24 @@ def new_table(name_db:str):
 @app.route("/quotes")
 def get_quotes():
     #-> list[dict[str, Any]]:
-    quotes_db = db.session.scalars(db.select(QuoteModel)).all()
+    # quotes_db = db.session.scalars(db.select(AuthorModel.name)).all()
+    # quotes_db = db.session.scalars(db.select(AuthorModel)).all()
+    quotes_db = db.session.get(AuthorModel, QuoteModel.text)
+    # k = ("id", "author", "text")
     quotes = []
     for quote in quotes_db:
-            quotes.append(quote.to_dict())
+    #     quote = dict(zip(k, quotes_db))
+        quotes.append(quote.to_dict())
     return jsonify(quotes), 200
+    # return "ok", 200
 
 @app.route("/quotes/<int:id>")
-def get_quote(id):
-    quotes_db = db.session.scalars(db.select(QuoteModel).filter_by(id=id)).all()
+def get_quote(id): 
+# -> list[dict[str, Any]]:
+    # quotes_db = db.session.scalars(db.select(QuoteModel).filter_by(author_id=id)).all()
+    quotes_db = db.session.get(AuthorModel, id)
     quotes = []
-    for quote in quotes_db:
+    for quote in quotes_db.quotes:
             quotes.append(quote.to_dict())
     return jsonify(quotes), 200
 
@@ -152,18 +185,26 @@ def quotes_filt():
 def create_quote():
     data = request.json
 
-    stmt = insert(user_table).values(name="username", fullname="Full Username")
+    # stmt = insert(user_table).values(name="username", fullname="Full Username")
 
-    connection = sqlite3.connect(path_to_db)
-    cursor = connection.cursor()
-    insert_quotes = "INSERT INTO quotes (author,text) VALUES (?,?)"
-    cursor.execute(insert_quotes, (data['author'], data['text']))
-    print(cursor.rowcount, cursor.lastrowid)
-    quotes_new_id = cursor.lastrowid
-    cursor.close()
-    connection.commit()
-    connection.close()
-    return jsonify(quotes_new_id), 200
+    # connection = sqlite3.connect(path_to_db)
+    # cursor = connection.cursor()
+    # insert_quotes = "INSERT INTO quotes (author,text) VALUES (?,?)"
+    # cursor.execute(insert_quotes, (data['author'], data['text']))
+    # print(cursor.rowcount, cursor.lastrowid)
+    # quotes_new_id = cursor.lastrowid
+    # cursor.close()
+    # connection.commit()
+    # connection.close()
+    # return jsonify(quotes_new_id), 200
+
+    author1 = AuthorModel(name=data['name'])
+    db.session.add(author1)
+    db.session.commit()
+    q1 = QuoteModel(author1, data['text'])
+    db.session.add(q1)
+    db.session.commit()
+    return "OK", 200
 
 
 @app.route("/quotes/<int:id>", methods=['PUT'])
