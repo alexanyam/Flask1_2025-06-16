@@ -4,15 +4,43 @@ import sqlite3
 from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, func, insert, update
+from sqlalchemy.exc import InvalidRequestError
+from flask_migrate import Migrate
+
+
+class Base(DeclarativeBase):
+    pass
+
+BASE_DIR = Path(__file__).parent
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
-BASE_DIR = Path(__file__).parent
+
 db_file = 'quotes.db'
 path_to_db = BASE_DIR / db_file  # <- тут путь к БД
 app.config['JSON_AS_ASCII'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{BASE_DIR / 'main.db'}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(model_class=Base)
+db.init_app(app)
+migrate = Migrate(app, db)
+
+class QuoteModel(db.Model):
+    __tablename__ = 'quotes'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    author: Mapped[str] = mapped_column(String(32))
+    text: Mapped[str] = mapped_column(String(255))
+    rating: Mapped[int]
+    def __init__(self, author, text, rating):
+        self.author = author
+        self.text = text
+        self.rating = rating
+
+    def to_dict(self):
+        return{"id": self.id, "author": self.author, "text": self.text, "rating": self.rating}
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -87,17 +115,26 @@ def new_table(name_db:str):
 
 
 @app.route("/quotes")
-def quotes_():
-    cursor = get_db().cursor()
-    select_quotes = "SELECT * from quotes"
-    cursor.execute(select_quotes)
-    quotes_db = cursor.fetchall()
-    k = ("id", "author", "text", "rating")
+def get_quotes():
+    #-> list[dict[str, Any]]:
+    quotes_db = db.session.scalars(db.select(QuoteModel)).all()
     quotes = []
     for quote in quotes_db:
-        quote = dict(zip(k, quote))
-        quotes.append(quote)
+            quotes.append(quote.to_dict())
     return jsonify(quotes), 200
+
+@app.route("/quotes/<int:id>")
+def get_quote(id):
+    quotes_db = db.session.scalars(db.select(QuoteModel).filter_by(id=id)).all()
+    quotes = []
+    for quote in quotes_db:
+            quotes.append(quote.to_dict())
+    return jsonify(quotes), 200
+
+@app.route("/quotes/count")
+def count_():
+    count = db.session.scalar(func.count(QuoteModel.id))
+    return jsonify(count = count), 200
 
 
 @app.route("/quotes/filter")
@@ -114,6 +151,9 @@ def quotes_filt():
 @app.route("/quotes", methods=['POST'])
 def create_quote():
     data = request.json
+
+    stmt = insert(user_table).values(name="username", fullname="Full Username")
+
     connection = sqlite3.connect(path_to_db)
     cursor = connection.cursor()
     insert_quotes = "INSERT INTO quotes (author,text) VALUES (?,?)"
@@ -169,28 +209,15 @@ def delete(id):
     #    return {"error": f"Not found"}, 404
        return {"error": f"Quote with id={id} not found"}, 404
 
-@app.route("/quotes/<int:id>")
-def get_quote(id):
-    cursor = get_db().cursor()
-    select_quotes = "SELECT * from quotes WHERE id=?"
-    cursor.execute(select_quotes,(id,))
-    quotes_db = cursor.fetchone()
-    k = ("id", "author", "text", "rating")
-    quotes = []
-    for quote in quotes_db:
-        quote = dict(zip(k, quotes_db))
-        quotes.append(quote)
-    return jsonify(quotes[0]), 200
-
-@app.route("/quotes/count")
-def count_():
-    connection = sqlite3.connect(path_to_db)
-    cursor = connection.cursor()
-    select_quotes = "SELECT COUNT(*) from quotes"
-    quotes_db = cursor.execute(select_quotes).fetchone()
-    cursor.close()
-    connection.close()
-    return jsonify({"count":quotes_db[0]}), 200
+# @app.route("/quotes/count")
+# def count_():
+#     connection = sqlite3.connect(path_to_db)
+#     cursor = connection.cursor()
+#     select_quotes = "SELECT COUNT(*) from quotes"
+#     quotes_db = cursor.execute(select_quotes).fetchone()
+#     cursor.close()
+#     connection.close()
+#     return jsonify({"count":quotes_db[0]}), 200
 
 @app.route("/quotes/random")
 def round_():
