@@ -33,14 +33,16 @@ migrate = Migrate(app, db)
 class AuthorModel(db.Model):
     __tablename__ = 'authors'
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[int] = mapped_column(String(32), index= True, unique=True)
+    surname: Mapped[int] = mapped_column(String(32), index= True, default = '', server_default = '')
+    name: Mapped[int] = mapped_column(String(32))
     quotes: Mapped[list['QuoteModel']] = relationship( back_populates='author', lazy='dynamic')
-    def __init__(self, id, name):
+    def __init__(self, id, surname, name):
         self.id = id
+        self.surname = surname
         self.name = name
 
     def to_dict(self):
-        return{"id": self.id, "name": self.name}    
+        return{"id": self.id, "surname": self.surname, "name": self.name}    
 
 class QuoteModel(db.Model):
     __tablename__ = 'quotes'
@@ -174,7 +176,7 @@ def get_author(id):
     # for quote in quotes_db.name:
     #         quotes.append(quote.to_dict())
     if quotes_db:
-        return jsonify(quotes_db.name), 200  
+        return jsonify(quotes_db.name+' '+quotes_db.surname), 200  
     else:
         return {"Error":f"Не найден id автора = {id}"}, 400       
 
@@ -182,22 +184,21 @@ def get_author(id):
 @app.route("/authors", methods=['POST'])
 def create_author():
     data = request.json
-    author1 = AuthorModel(id=None, name=data['name'])
+    author1 = AuthorModel(id=None, name=data['name'], surname=data['surname'])
     db.session.add(author1)
     db.session.commit()
-    return {"Result":f"Добавлен автор: {data['name']}"}, 200 
+    return {"Result":f"Добавлен автор: {data['name']+' '+ data['surname']}"}, 200 
 
 # Редактировать автора по id
 @app.route("/authors/<int:id>", methods=['PUT'])
 def edit_author(id):
     data = request.json
     author1 = db.session.get(AuthorModel, id)
-    # quotes_db = db.session.get(AuthorModel, id)
     if author1:
         author1.name = data['name']
-        # author1.id = None
+        author1.surname = data['surname']
         db.session.commit()
-        return {"Result:":f"Изменен автор с id = {id} на {data['name']}"}, 200  
+        return {"Result:":f"Изменен автор с id = {id} на {data['name']+' '+data['surname']}"}, 200  
     else:
         return {"Error":f"Не найден id автора = {id}"}, 400  
 
@@ -262,7 +263,7 @@ def edit_quote(id):
     data = request.json
     q1 = db.session.get(QuoteModel, id)
     if q1:
-        q1.name = data['text']
+        q1.text = data['text']
         db.session.commit()
         return {"Result:":f"Изменена цитата с id = {id} на {data['text']}"}, 200  
     else:
