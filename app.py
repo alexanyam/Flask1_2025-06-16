@@ -36,7 +36,7 @@ class AuthorModel(db.Model):
     name: Mapped[int] = mapped_column(String(32), index= True, unique=True)
     quotes: Mapped[list['QuoteModel']] = relationship( back_populates='author', lazy='dynamic')
     def __init__(self, id, name):
-        self.id = id,
+        self.id = id
         self.name = name
 
     def to_dict(self):
@@ -50,9 +50,13 @@ class QuoteModel(db.Model):
     text: Mapped[str] = mapped_column(String(255))
     # rating: Mapped[int]
     def __init__(self, author, text):
-        # self.author = author
+        self.author = author
+        # self.author_id = author_id
         self.text = text
         # self.rating = rating
+
+    def to_dict(self):
+        return{"id": self.id, "text": self.text, "author": self.author}       
 
 # class QuoteModel(db.Model):
 #     __tablename__ = 'quotes'
@@ -65,8 +69,6 @@ class QuoteModel(db.Model):
 #         self.text = text
 #         self.rating = rating
 
-    def to_dict(self):
-        return{"id": self.id, "text": self.text}
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -138,31 +140,144 @@ def new_table(name_db:str):
 #    },
 # ]
 
-
-
-@app.route("/quotes")
-def get_quotes():
+# Список всех авторов
+@app.route("/authors")
+def get_authors():
     #-> list[dict[str, Any]]:
-    # quotes_db = db.session.scalars(db.select(AuthorModel.name)).all()
+    quotes_db = db.session.scalars(db.select(AuthorModel)).all()
     # quotes_db = db.session.scalars(db.select(AuthorModel)).all()
-    quotes_db = db.session.get(AuthorModel, QuoteModel.text)
-    # k = ("id", "author", "text")
+    # quotes_db = db.session.get(AuthorModel,)
     quotes = []
     for quote in quotes_db:
-    #     quote = dict(zip(k, quotes_db))
-        quotes.append(quote.to_dict())
-    return jsonify(quotes), 200
-    # return "ok", 200
-
-@app.route("/quotes/<int:id>")
-def get_quote(id): 
-# -> list[dict[str, Any]]:
-    # quotes_db = db.session.scalars(db.select(QuoteModel).filter_by(author_id=id)).all()
-    quotes_db = db.session.get(AuthorModel, id)
-    quotes = []
-    for quote in quotes_db.quotes:
             quotes.append(quote.to_dict())
     return jsonify(quotes), 200
+
+# # Цитаты по id автора
+# @app.route("/authors/<int:id>/quotes")
+# def get_authors_quotes(id): 
+# # -> list[dict[str, Any]]:
+#     quotes_db = db.session.get(AuthorModel, id)
+#     if quotes_db:
+#         quotes = []
+#         for quote in quotes_db.quotes:
+#                 quotes.append(quote.to_dict())
+#         return jsonify(quotes), 200
+#     else:
+#         return {"Error":f"Не найдены цитаты с id автора = {id}"}, 400  
+
+# Автор по id
+@app.route("/authors/<int:id>")
+def get_author(id): 
+# -> list[dict[str, Any]]:
+    quotes_db = db.session.get(AuthorModel, id)
+    # quotes = []
+    # for quote in quotes_db.name:
+    #         quotes.append(quote.to_dict())
+    if quotes_db:
+        return jsonify(quotes_db.name), 200  
+    else:
+        return {"Error":f"Не найден id автора = {id}"}, 400       
+
+# Создать автора
+@app.route("/authors", methods=['POST'])
+def create_author():
+    data = request.json
+    author1 = AuthorModel(id=None, name=data['name'])
+    db.session.add(author1)
+    db.session.commit()
+    return {"Result":f"Добавлен автор: {data['name']}"}, 200 
+
+# Редактировать автора по id
+@app.route("/authors/<int:id>", methods=['PUT'])
+def edit_author(id):
+    data = request.json
+    author1 = db.session.get(AuthorModel, id)
+    # quotes_db = db.session.get(AuthorModel, id)
+    if author1:
+        author1.name = data['name']
+        # author1.id = None
+        db.session.commit()
+        return {"Result:":f"Изменен автор с id = {id} на {data['name']}"}, 200  
+    else:
+        return {"Error":f"Не найден id автора = {id}"}, 400  
+
+# Удалить автора
+@app.route("/authors/<int:au_id>", methods=['DELETE'])
+def delete_author(au_id):
+    quotes_db = db.session.get(AuthorModel, au_id)
+    if quotes_db:
+        db.session.delete(quotes_db)
+        db.session.commit()
+        return {"Result":f"Удален автор с id = {au_id}"}, 200  
+    else:
+        return {"Error":f"Не найден id автора = {au_id}"}, 400    
+
+###################################################################################
+# Цитаты
+@app.route("/quotes")
+def get_quotes():
+    quotes_db = db.session.scalars(db.select(QuoteModel.text)).all()
+    return jsonify(quotes_db), 200 
+
+# Цитата по id
+@app.route("/quotes/<int:id>")
+def get_quote(id): 
+    quotes_db = db.session.get(QuoteModel, id)
+    if quotes_db:
+        # quotes = []
+        # for quote in quotes_db:
+        #     quotes.append(quote.to_dict())   
+        return {"text": quotes_db.text}, 200  
+        # return jsonify(quotes.to_dict()), 200    
+        # return quotes_db.text, 200    
+    else:
+        return {"Error":f"Не найден id цитаты = {id}"}, 400   
+
+# Цитаты по id автора
+@app.route("/authors/<int:id>/quotes")
+def get_authors_quotes(id): 
+# -> list[dict[str, Any]]:
+    au = db.session.get(AuthorModel, id)
+    print(au.name)
+    if au:
+        q_db = db.session.query(QuoteModel).with_entities(QuoteModel.id,QuoteModel.text).filter(QuoteModel.author_id == id).all()
+        return jsonify(dict(q_db)), 200 
+    else:
+        return {"Error":f"Не найдены цитаты с id автора = {id}"}, 400  
+  
+
+# Создать цитату 
+@app.route("/authors/<int:id>/quotes", methods=['POST'])
+def create_quote(id):
+    data = request.json
+    au_db = db.session.get(AuthorModel, id)
+    q1 = QuoteModel(text=data['text'], author = au_db)
+    db.session.add(q1)
+    db.session.commit()
+    return {"Result":f"Добавлена цитата: {data['text']}"}, 200 
+
+# Редактировать цитату по id
+@app.route("/quotes/<int:id>", methods=['PUT'])
+def edit_quote(id):
+    data = request.json
+    q1 = db.session.get(QuoteModel, id)
+    if q1:
+        q1.name = data['text']
+        db.session.commit()
+        return {"Result:":f"Изменена цитата с id = {id} на {data['text']}"}, 200  
+    else:
+        return {"Error":f"Не найден id цитаты = {id}"}, 400  
+
+# Удалить цитату
+@app.route("/quotes/<int:q_id>", methods=['DELETE'])
+def delete_quotes(q_id):
+    quotes_db = db.session.get(QuoteModel, q_id)
+    if quotes_db:
+        db.session.delete(quotes_db)
+        db.session.commit()
+        return {"Result":f"Удалена цитата с id = {q_id}"}, 200  
+    else:
+        return {"Error":f"Не найден id цитаты = {q_id}"}, 400  
 
 @app.route("/quotes/count")
 def count_():
@@ -181,23 +296,9 @@ def quotes_filt():
         quotes_f = [i for i in quotes_f if i[k] == v]
     return quotes_f
 
-@app.route("/quotes", methods=['POST'])
-def create_quote():
+@app.route("/authors/<int:id>/quotes", methods=['POST'])
+def create_quote_au():
     data = request.json
-
-    # stmt = insert(user_table).values(name="username", fullname="Full Username")
-
-    # connection = sqlite3.connect(path_to_db)
-    # cursor = connection.cursor()
-    # insert_quotes = "INSERT INTO quotes (author,text) VALUES (?,?)"
-    # cursor.execute(insert_quotes, (data['author'], data['text']))
-    # print(cursor.rowcount, cursor.lastrowid)
-    # quotes_new_id = cursor.lastrowid
-    # cursor.close()
-    # connection.commit()
-    # connection.close()
-    # return jsonify(quotes_new_id), 200
-
     author1 = AuthorModel(name=data['name'])
     db.session.add(author1)
     db.session.commit()
@@ -207,29 +308,29 @@ def create_quote():
     return "OK", 200
 
 
-@app.route("/quotes/<int:id>", methods=['PUT'])
-def edit_quote(id):
-    data = request.json
-    attributes: set = set(data.keys()) & {'author','rating','text'}
-    if "rating" in attributes and data["rating"] not in range(1,6):
-        attributes.remove("rating")
-    if attributes:
-        connection = sqlite3.connect(path_to_db)
-        cursor = connection.cursor()
-        update_quotes = f"UPDATE quotes SET {', '.join(attr+'=?' for attr in attributes)} WHERE id=?"
-        params = tuple(data.get(attr) for attr in attributes) + (id,)
-        cursor.execute(update_quotes, params)
-        quotes_new_id = cursor.lastrowid
-        quotes_cr = cursor.rowcount
-        cursor.close()
-        connection.commit()
-        connection.close()
-        if quotes_cr:
-            return jsonify(quotes_new_id, quotes_cr), 200
-        else:
-           return {"error": f"Record not updated"}, 404
-    else:
-       return {"error": f"No data"}, 404
+# @app.route("/quotes/<int:id>", methods=['PUT'])
+# def edit_quote(id):
+#     data = request.json
+#     attributes: set = set(data.keys()) & {'author','rating','text'}
+#     if "rating" in attributes and data["rating"] not in range(1,6):
+#         attributes.remove("rating")
+#     if attributes:
+#         connection = sqlite3.connect(path_to_db)
+#         cursor = connection.cursor()
+#         update_quotes = f"UPDATE quotes SET {', '.join(attr+'=?' for attr in attributes)} WHERE id=?"
+#         params = tuple(data.get(attr) for attr in attributes) + (id,)
+#         cursor.execute(update_quotes, params)
+#         quotes_new_id = cursor.lastrowid
+#         quotes_cr = cursor.rowcount
+#         cursor.close()
+#         connection.commit()
+#         connection.close()
+#         if quotes_cr:
+#             return jsonify(quotes_new_id, quotes_cr), 200
+#         else:
+#            return {"error": f"Record not updated"}, 404
+#     else:
+#        return {"error": f"No data"}, 404
 
 @app.route("/quotes/<int:id>", methods=['DELETE'])
 def delete(id):
