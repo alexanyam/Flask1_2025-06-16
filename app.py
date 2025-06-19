@@ -50,15 +50,15 @@ class QuoteModel(db.Model):
     author_id: Mapped[str] = mapped_column(ForeignKey('authors.id'))
     author: Mapped['AuthorModel'] = relationship(back_populates='quotes')
     text: Mapped[str] = mapped_column(String(255))
-    # rating: Mapped[int]
-    def __init__(self, author, text):
+    rating: Mapped[int]=mapped_column(default = '1', server_default = '1')
+    def __init__(self, author, text, rating):
         self.author = author
         # self.author_id = author_id
         self.text = text
-        # self.rating = rating
+        self.rating = rating
 
     def to_dict(self):
-        return{"id": self.id, "text": self.text, "author": self.author}       
+        return{"id": self.id, "text": self.text, "rating": self.rating, "author": self.author}       
 
 # class QuoteModel(db.Model):
 #     __tablename__ = 'quotes'
@@ -225,9 +225,6 @@ def get_quotes():
 def get_quote(id): 
     quotes_db = db.session.get(QuoteModel, id)
     if quotes_db:
-        # quotes = []
-        # for quote in quotes_db:
-        #     quotes.append(quote.to_dict())   
         return {"text": quotes_db.text}, 200  
         # return jsonify(quotes.to_dict()), 200    
         # return quotes_db.text, 200    
@@ -252,7 +249,11 @@ def get_authors_quotes(id):
 def create_quote(id):
     data = request.json
     au_db = db.session.get(AuthorModel, id)
-    q1 = QuoteModel(text=data['text'], author = au_db)
+    if data['rating']>0 & data['rating']<6:
+        r = data['rating']
+    else:
+        r=1
+    q1 = QuoteModel(text=data['text'], rating=r, author = au_db)
     db.session.add(q1)
     db.session.commit()
     return {"Result":f"Добавлена цитата: {data['text']}"}, 200 
@@ -264,6 +265,10 @@ def edit_quote(id):
     q1 = db.session.get(QuoteModel, id)
     if q1:
         q1.text = data['text']
+        if int(data['rating'])>0 and int(data['rating'])<6:
+            q1.rating = str(data['rating'])
+        else:
+            q1.rating = '1'
         db.session.commit()
         return {"Result:":f"Изменена цитата с id = {id} на {data['text']}"}, 200  
     else:
@@ -309,48 +314,24 @@ def create_quote_au():
     return "OK", 200
 
 
-# @app.route("/quotes/<int:id>", methods=['PUT'])
-# def edit_quote(id):
-#     data = request.json
-#     attributes: set = set(data.keys()) & {'author','rating','text'}
-#     if "rating" in attributes and data["rating"] not in range(1,6):
-#         attributes.remove("rating")
-#     if attributes:
-#         connection = sqlite3.connect(path_to_db)
-#         cursor = connection.cursor()
-#         update_quotes = f"UPDATE quotes SET {', '.join(attr+'=?' for attr in attributes)} WHERE id=?"
-#         params = tuple(data.get(attr) for attr in attributes) + (id,)
-#         cursor.execute(update_quotes, params)
-#         quotes_new_id = cursor.lastrowid
-#         quotes_cr = cursor.rowcount
-#         cursor.close()
-#         connection.commit()
-#         connection.close()
-#         if quotes_cr:
-#             return jsonify(quotes_new_id, quotes_cr), 200
-#         else:
-#            return {"error": f"Record not updated"}, 404
-#     else:
-#        return {"error": f"No data"}, 404
-
-@app.route("/quotes/<int:id>", methods=['DELETE'])
-def delete(id):
-    # data = request.json
-    connection = sqlite3.connect(path_to_db)
-    cursor = connection.cursor()
-    delete_quotes = "DELETE FROM quotes WHERE id=?"
-    cursor.execute(delete_quotes, [id])
-    quotes_new_id = cursor.lastrowid
-    quotes_cr = cursor.rowcount
-    cursor.close()
-    connection.commit()
-    connection.close()
-    if quotes_cr:
-        # return jsonify(quotes_new_id, quotes_cr), 200
-       return f"Quote with id {id} is deleted.", 200
-    else:    
-    #    return {"error": f"Not found"}, 404
-       return {"error": f"Quote with id={id} not found"}, 404
+# @app.route("/quotes/<int:id>", methods=['DELETE'])
+# def delete(id):
+#     # data = request.json
+#     connection = sqlite3.connect(path_to_db)
+#     cursor = connection.cursor()
+#     delete_quotes = "DELETE FROM quotes WHERE id=?"
+#     cursor.execute(delete_quotes, [id])
+#     quotes_new_id = cursor.lastrowid
+#     quotes_cr = cursor.rowcount
+#     cursor.close()
+#     connection.commit()
+#     connection.close()
+#     if quotes_cr:
+#         # return jsonify(quotes_new_id, quotes_cr), 200
+#        return f"Quote with id {id} is deleted.", 200
+#     else:    
+#     #    return {"error": f"Not found"}, 404
+#        return {"error": f"Quote with id={id} not found"}, 404
 
 # @app.route("/quotes/count")
 # def count_():
